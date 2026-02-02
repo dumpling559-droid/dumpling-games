@@ -81,24 +81,57 @@ canvas {
   border-radius: 50%;
   background: #c33;
   box-shadow: 0 10px 0 #711;
+  
+  display: inline-block; 
+  cursor: pointer;
+  border: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  
+  transition: transform 0.05s, box-shadow 0.05s; 
 }
+
 #shoot.pressed {
-  box-shadow: none;
-  transform: translateY(10px);
+  box-shadow: none !important;
+  transform: translateY(10px) !important; 
 }
+
+
+.controls-container {
+  position: fixed;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between; 
+  align-items: center;            
+  padding: 0 40px;                
+  pointer-events: none;     
+}
+
+#dpad, #shoot {
+  pointer-events: auto;
+}
+
 
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <div id="ui">
+  <div class="controls-container">
   <div id="dpad">
-    <div class="arcade-btn up" data-key="up"><div class="icon-up"></div></div>
-    <div class="arcade-btn down" data-key="down"><div class="icon-down"></div></div>
-    <div class="arcade-btn left" data-key="left"><div class="icon-left"></div></div>
-    <div class="arcade-btn right" data-key="right"><div class="icon-right"></div></div>
+    <div class="arcade-btn up"><div class="icon-up"></div></div>
+    <div class="arcade-btn down"><div class="icon-down"></div></div>
+    <div class="arcade-btn left"><div class="icon-left"></div></div>
+    <div class="arcade-btn right"><div class="icon-right"></div></div>
   </div>
-  <div class="arcade-btn" id="shoot"></div>
+  
+  <button id="shoot"></button>
+</div>
+
+    
 </div>
 
 <script>
@@ -153,8 +186,6 @@ function playEnemyFireSound() {
   const osc = AudioCtx.createOscillator();
   const gain = AudioCtx.createGain();
 
-  // 'sine' is smoother, 'triangle' is a bit sharper. 
-  // Let's use triangle for a retro arcade "pew"
   osc.type = 'triangle'; 
   osc.frequency.setValueAtTime(600, now);
   osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
@@ -240,6 +271,30 @@ function playExplosionSound(){
   src.start();
 }
 
+function playHpUpSound() {
+
+  const ladderNotes = [1046.50, 1174.66, 1318.51, 1567.98, 2093.00]; 
+  const noteGap = 0.05; // 50ms between notes
+
+  ladderNotes.forEach((freq, index) => {
+    const oscillator = AudioCtx.createOscillator();
+    const gainNode = AudioCtx.createGain();
+
+    oscillator.type = 'square'; // Keep it sharp and retro
+    oscillator.frequency.setValueAtTime(freq, AudioCtx.currentTime + (index * noteGap));
+    gainNode.gain.setValueAtTime(0.1, AudioCtx.currentTime + (index * noteGap));
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, AudioCtx.currentTime + (index * noteGap) + 0.1);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(AudioCtx.destination);
+
+    oscillator.start(AudioCtx.currentTime + (index * noteGap));
+    oscillator.stop(AudioCtx.currentTime + (index * noteGap) + 0.12);
+  });
+}
+
+
+
 /* ================= Game Objects ================= */
 const ship = {x:0, y:0, width:24, height:20, shield:false};
 const bullets = [];
@@ -275,8 +330,8 @@ let enemies = [];
 let enemyBaseSpeed = 0.3;
 let enemyBulletSpeed = 2; 
 let enemyShootChance = 0.0001;
-const maxEnemySpeed = 1;
-const maxShootChance = 0.01;
+const maxEnemySpeed = 3;
+const maxShootChance = 0.001;
 
 function spawnWave(){
   enemies = [];
@@ -326,6 +381,64 @@ function drawExplosions(){
     ctx.fillRect(p.x, p.y, 4, 4);
     ctx.globalAlpha = 1;
     if(p.life <= 0) explosions.splice(i, 1);
+  }
+}
+
+/* ===Items ===*/
+let items = [];
+let hpIconSpawnedThisWave = false;
+
+function spawnHPIcon() {
+  items.push({
+    x: Math.random() * (canvas.width - 40) + 20,
+    y: -50,
+    speed: 1.5,
+    angle: 0
+  });
+}
+
+function drawItems() {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    item.y += item.speed;
+    item.angle += 0.05; // Rotation speed for the shield
+
+    const x = item.x;
+    const y = item.y;
+    const size = 3; // Same scale as UI hearts
+
+    // Draw Rotating Energy Shield
+    ctx.save();
+    ctx.translate(x + (size * 2.5), y + (size * 2));
+    ctx.rotate(item.angle);
+    ctx.strokeStyle = "#00FFFF";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]); // Dotted/dashed look
+    ctx.beginPath();
+    ctx.arc(0, 0, 25, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    drawHeart(x, y, size);
+
+    ctx.fillStyle = "#fff";
+    
+    ctx.fillRect(x + (size * 1.5), y + (size * 2), size * 2, size / 1.5);
+    
+    ctx.fillRect(x + (size * 2.2), y + (size * 1.3), size / 1.5, size * 2);
+
+    const dist = Math.hypot(ship.x - (x + 10), ship.y - (y + 10));
+    if (dist < 30) {
+      if (lives < 3) {
+        lives++;
+      } else {
+        score += 10000;
+      }
+      items.splice(i, 1);
+      playHpUpSound();
+    }
+
+    if (item.y > canvas.height) items.splice(i, 1);
   }
 }
 
@@ -480,7 +593,43 @@ function drawEnemies(){
     if(e.mouthSymbolCounter === undefined) e.mouthSymbolCounter = 0;
     
     if(!e.color){
-      const baseColors = ["#f00","#0f0","#00f","#ff0","#f0f","#0ff","#ffa500"];
+
+const baseColors = [
+  "#7DF9FF",
+  "#0096FF",
+  "#89CFF0",
+  "#E1C16E",
+  "#CD7F32",
+  "#A52A2A",
+  "#228B22",
+  "#50C878",
+  "#097969",
+  "#FFBF00",
+  "#FFAC1C",
+  "#FF5F1F",
+  "#FF4433",
+  "#DC143C",
+  "#DE3163",
+  "#FF69B4",
+  "#5D3FD3",
+  "#BF40BF",
+  "#7F00FF",
+  "#EE4B2B",
+  "#C41E3A",
+  "#FF3131",
+  "#FFD700",
+  "#FFDB58",
+  "#FFEA00",
+  "#8B8000",
+  "#FF0000",
+  "#0000FF",
+  "#00FF7F",
+  "#00BFFF",
+  "#00FF7F",
+  "#FF69B4",
+  "#FF6347"
+];
+
       e.color = baseColors[Math.floor(Math.random()*baseColors.length)];
     }
 
@@ -646,15 +795,15 @@ function drawEnemyBullets() {
 
 function drawUI() {
   const padding = 16;
-  const heartSize = 4;
+  const heartSize = 3;
 
   ctx.font = "bold 18px 'Courier New', Courier, monospace";
   ctx.textBaseline = "top";
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 2;
   ctx.strokeStyle = "#000";
 
   const labelColor = "#e0e0e0"; // bright grey
-  const numberColor = "#f00";  // red
+  const numberColor = "#ffff00";  // red
 
   // ===== LIVES (LEFT) =====
   ctx.textAlign = "left";
@@ -668,7 +817,7 @@ function drawUI() {
 
   // ===== WAVE (CENTER) =====
   ctx.textAlign = "left";
-  const waveLabel = "WAVE : ";
+  const waveLabel = "WAVE:";
   const waveNumber = wave.toString();
 
   const waveTotalWidth =
@@ -695,7 +844,7 @@ function drawUI() {
 
   // ===== SCORE (RIGHT) =====
   ctx.textAlign = "right";
-  const scoreLabel = "SCORE : ";
+  const scoreLabel = "SCORE:";
   const scoreNumber = score.toString();
 
   const scoreX = canvas.width - padding;
@@ -826,11 +975,12 @@ function isWaveCleared(){
 }
 function increaseDifficulty() {
   wave++;
+  hpIconSpawnedThisWave = false;
 
   // stronger difficulty growth per wave
   enemyBaseSpeed = Math.min(0.3 + Math.pow(wave, 0.3) * 0.07, maxEnemySpeed);
-  enemyBulletSpeed = Math.min(2 + Math.pow(wave, 0.25) * 0.08, 3); 
-  enemyShootChance = Math.min(0.0002 + Math.pow(wave, 0.3) * 0.0002, maxShootChance); 
+  enemyBulletSpeed = Math.min(2 + Math.pow(wave, 0.25) * 0.08, 5); 
+  enemyShootChance = Math.min(0.0002 + Math.pow(wave, 0.3) * 0.0003, maxShootChance); 
 
   spawnWave();
 }
@@ -839,6 +989,11 @@ function increaseDifficulty() {
 /* ================= Game Loop ================= */
 function update(){
   if(gameOver) return;
+
+  if (wave % 10 === 0 && ! hpIconSpawnedThisWave) {
+    spawnHPIcon();
+    hpIconSpawnedThisWave = true;
+  }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawStars();
@@ -849,7 +1004,7 @@ function update(){
   if(keys.right) ship.x += 4;
 
   const ui = document.getElementById("ui");
-  const bottomLimit = canvas.height - 30 - ui.offsetHeight - 50;
+  const bottomLimit = canvas.height - 30 - ui.offsetHeight - 200;
   ship.x = Math.max(12, Math.min(canvas.width - 12, ship.x));
   ship.y = Math.max(30, Math.min(bottomLimit, ship.y));
 
@@ -858,6 +1013,7 @@ function update(){
   drawShip();
   drawBullets();
   drawEnemies();
+  drawItems();
   drawExplosions();
   drawEnemyBullets();
   drawUI();
