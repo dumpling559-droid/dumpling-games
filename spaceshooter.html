@@ -148,22 +148,45 @@ function startBGM() {
 // Start BGM
 startBGM();
 
-function playGunSound() {
+function playEnemyFireSound() {
+  const now = AudioCtx.currentTime;
   const osc = AudioCtx.createOscillator();
   const gain = AudioCtx.createGain();
-  
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(800, AudioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(2000, AudioCtx.currentTime + 0.05);
-  
-  gain.gain.setValueAtTime(0.15, AudioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.01, AudioCtx.currentTime + 0.05);
-  
+
+  // 'sine' is smoother, 'triangle' is a bit sharper. 
+  // Let's use triangle for a retro arcade "pew"
+  osc.type = 'triangle'; 
+  osc.frequency.setValueAtTime(600, now);
+  osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+
+  gain.gain.setValueAtTime(0.1, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
   osc.connect(gain);
   gain.connect(AudioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.15);
+}
+
+function playGunSound() {
+  const now = AudioCtx.currentTime;
+  const osc = AudioCtx.createOscillator();
+  const gain = AudioCtx.createGain();
+
+  osc.type = 'square'; 
   
-  osc.start();
-  osc.stop(AudioCtx.currentTime + 0.05);
+  osc.frequency.setValueAtTime(1200, now);
+  osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+  osc.connect(gain);
+  gain.connect(AudioCtx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.08);
 }
 
 function playEnemyHitSound() {
@@ -307,77 +330,144 @@ function drawExplosions(){
 }
 
 /* ================= Draw Objects ================= */
-function drawShip(){
-  if(ship.shield){
+function drawShip() {
+
+  const x = ship.x;
+  const y = ship.y;
+  
+  const p = 35 / 15; 
+
+// --- PLAYER ENGINE FLAME (NEW) ---
+  const time = Date.now() * 0.01;
+  
+  for (let j = 0; j < 3; j++) {
+    const flickerX = Math.sin(time + j) * 2;
+    
+    const flickerY = Math.random() * 10 + 8; 
+    
+    ctx.fillStyle = j === 0 ? "rgba(0, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.3)";
+    
     ctx.beginPath();
-    ctx.strokeStyle = "#0ff";
-    ctx.lineWidth = 3;
-    ctx.arc(ship.x, ship.y, 45, 0, Math.PI*2);
-    ctx.stroke();
+    ctx.moveTo(x - 3, y + 15); 
+    ctx.quadraticCurveTo(
+      x + flickerX, y + 15 + flickerY, 
+      x + 4, y + 15
+    );
+    ctx.fill();
   }
 
-  // Body
-  ctx.fillStyle = "#444";
-  ctx.beginPath();
-  ctx.moveTo(ship.x, ship.y - 30);
-  ctx.lineTo(ship.x - 9, ship.y + 22);
-  ctx.lineTo(ship.x + 9, ship.y + 22);
-  ctx.closePath();
-  ctx.fill();
+  // 0=Empty, 1=White/Grey, 2=Red, 3=Blue
+  const galagaMap = [
+    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], // Row 0
+    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], // Row 1
+    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], // Row 2
+ 
+[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0], // Row 3
+    [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0], // Row 4
+    [0,0,0,2,0,0,1,1,1,0,0,2,0,0,0], // Row 5
+    [0,0,0,2,0,1,1,1,1,1,0,2,0,0,0], // Row 6
+    [2,0,0,1,3,1,1,2,1,1,3,1,0,0,2], // Row 7
+    [2,0,0,3,1,1,2,2,2,1,1,3,0,0,2], // Row 8
+    [1,0,0,1,1,1,2,1,2,1,1,1,0,0,1], // Row 9
+    [1,0,1,1,1,1,1,1,1,1,1,1,1,0,1], // Row 10
+    [1,1,1,1,1,2,1,1,1,2,1,1,1,1,1], // Row 11
+    [1,1,1,0,2,2,1,1,1,2,2,0,1,1,1], // Row 12 
+    [1,1,0,0,2,2,0,1,0,2,2,0,0,1,1], // Row 13
+    [1,0,0,0,0,0,0,1,0,0,0,0,0,0,1], // Row 14
+  ];
 
-  // Cockpit
-  ctx.fillStyle = "#0af";
-  ctx.beginPath();
-  ctx.moveTo(ship.x - 4, ship.y - 15);
-  ctx.lineTo(ship.x + 4, ship.y - 15);
-  ctx.lineTo(ship.x + 3, ship.y + 3);
-  ctx.lineTo(ship.x - 3, ship.y + 3);
-  ctx.closePath();
-  ctx.fill();
+  const startX = x - (35 / 2); 
+  const startY = y - ((16 * p) / 2); 
 
-  // Wings
-  ctx.fillStyle = "#888";
-  ctx.beginPath();
-  ctx.moveTo(ship.x - 6, ship.y);
-  ctx.lineTo(ship.x - 24, ship.y + 9);
-  ctx.lineTo(ship.x - 6, ship.y + 9);
-  ctx.closePath();
-  ctx.fill();
+  galagaMap.forEach((row, rIdx) => {
+    row.forEach((pixel, cIdx) => {
+      if (pixel === 0) return;
 
-  ctx.beginPath();
-  ctx.moveTo(ship.x + 6, ship.y);
-  ctx.lineTo(ship.x + 24, ship.y + 9);
-  ctx.lineTo(ship.x + 6, ship.y + 9);
-  ctx.closePath();
-  ctx.fill();
+      if (pixel === 1) ctx.fillStyle = "#FFFFFF"; 
+      if (pixel === 2) ctx.fillStyle = "#FF0000"; // Red
+      if (pixel === 3) ctx.fillStyle = "#557AFF"; // Blue
 
-  // Tail fins
-  ctx.fillStyle = "#a22";
-  ctx.beginPath();
-  ctx.moveTo(ship.x - 4, ship.y + 22);
-  ctx.lineTo(ship.x - 9, ship.y + 28);
-  ctx.lineTo(ship.x - 2, ship.y + 22);
-  ctx.closePath();
-  ctx.fill();
+      ctx.fillRect(startX + (cIdx * p), startY + (rIdx * p), Math.ceil(p), Math.ceil(p));
+    });
+  });
+//draw shield
+  if (ship.shield) {
+    const time = Date.now() * 0.005;
+    const pulse = Math.sin(time) * 2;
+    const radius = 28 + pulse;
 
-  ctx.beginPath();
-  ctx.moveTo(ship.x + 4, ship.y + 22);
-  ctx.lineTo(ship.x + 9, ship.y + 28);
-  ctx.lineTo(ship.x + 2, ship.y + 22);
-  ctx.closePath();
-  ctx.fill();
+    ctx.save();
+    
+    // This makes the shield "glow" and blend with the ship pixels
+    ctx.globalCompositeOperation = "screen"; 
+
+    // Multi-layer Gradient
+    let grad = ctx.createRadialGradient(x, y, 5, x, y, radius);
+    grad.addColorStop(0, "rgba(0, 255, 255, 0.1)");   // Very faint cyan over the ship
+    grad.addColorStop(0.6, "rgba(0, 150, 255, 0.2)"); // Mid-depth blue
+    grad.addColorStop(0.9, "rgba(255, 255, 255, 0.6)"); // Bright rim
+    grad.addColorStop(1, "rgba(0, 200, 255, 0)");     // Outer fade
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // The "Hard Edge" of the bubble
+    ctx.strokeStyle = "rgba(200, 255, 255, 0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
 }
 
-function drawBullets(){
-  ctx.fillStyle = "#fff";
-  for(let i = bullets.length-1; i>=0; i--){
+
+function drawBullets() {
+  for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
-    ctx.fillRect(b.x, b.y, 2, 2);
-    ctx.fillRect(b.x, b.y+4, 2, 2);
-    ctx.fillRect(b.x, b.y+8, 2, 2);
-    ctx.fillRect(b.x, b.y+12, 2, 2);
-    b.y -= 7;
-    if(b.y < 0) bullets.splice(i, 1);
+
+    // --- 1. MASSIVE FLAME EFFECT ---
+    const time = Date.now() * 0.02;
+    // Layered flickering flames
+    for (let j = 0; j < 3; j++) {
+      const flickerX = Math.sin(time + j) * 3;
+      const flickerY = Math.random() * 20 + 15; // Big, long flames
+      
+      ctx.fillStyle = j === 0 ? "rgba(255, 150, 0, 0.6)" : "rgba(255, 50, 0, 0.4)";
+      ctx.beginPath();
+      ctx.moveTo(b.x - 1, b.y + 16);
+      ctx.quadraticCurveTo(
+        b.x + 1 + flickerX, b.y + 16 + flickerY, 
+        b.x + 3, b.y + 16
+      );
+      ctx.fill();
+    }
+
+    // --- 2. SLEEK MISSILE BODY ---
+    // Red Nose Cone (Slimmer)
+    ctx.fillStyle = "#ff0000";
+    ctx.beginPath();
+    ctx.moveTo(b.x + 1, b.y);       // Sharp tip
+    ctx.lineTo(b.x - 1, b.y + 7);   // Base left
+    ctx.lineTo(b.x + 3, b.y + 7);   // Base right
+    ctx.fill();
+
+    // Main Body (Narrowed to 4px wide)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(b.x - 1, b.y + 7, 4, 12);
+
+    // Darker Steel Fins
+    ctx.fillStyle = "#444";
+    ctx.fillRect(b.x - 3, b.y + 14, 2, 5); // Left fin
+    ctx.fillRect(b.x + 3, b.y + 14, 2, 5); // Right fin
+
+    // Movement
+    b.y -= 8; // Slightly faster for a "sleek" feel
+    if (b.y < -40) {
+      bullets.splice(i, 1);
+    }
   }
 }
 
@@ -417,6 +507,16 @@ function drawEnemies(){
       e.x - 5, e.y - 18    // Back to the top start point
     );
     
+    ctx.fill();
+
+    // ===== Balloon Knot (Trapezium) =====
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.moveTo(e.x - 2, e.y + 19); // Top left
+    ctx.lineTo(e.x + 2, e.y + 19); // Top right
+    ctx.lineTo(e.x + 4, e.y + 23); // Bottom right
+    ctx.lineTo(e.x - 4, e.y + 23); // Bottom left
+    ctx.closePath();
     ctx.fill();
 
 
@@ -465,12 +565,25 @@ function drawEnemies(){
       ctx.lineTo(e.x + eyeOffsetX + 3, e.y + eyeOffsetY);
       ctx.stroke();
     }
-    // ===== String =====
+        // ===== Wavy String =====
     ctx.strokeStyle = "#555";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(e.x, e.y + 20);
-    ctx.lineTo(e.x, e.y + 34);
+    
+    const startY = e.y + 23; // Connects to the bottom of the knot
+    const stringLength = 20;
+    const waveFrequency = 0.2; // How many bumps
+    const waveAmplitude = 2;   // How wide the waves are
+    const speed = Date.now() * 0.002; // Animation speed
+
+    ctx.moveTo(e.x, startY);
+
+    for (let i = 0; i <= stringLength; i++) {
+      // Calculate the x-offset using a sine wave
+      const xOffset = Math.sin(i * waveFrequency + speed) * waveAmplitude;
+      ctx.lineTo(e.x + xOffset, startY + i);
+    }
+    
     ctx.stroke();
   });
 }
@@ -491,22 +604,53 @@ function drawHeart(x, y, size) {
   ctx.fillRect(x + size, y + size * 3, size * 3, size);
   ctx.fillRect(x + size * 2, y + size * 4, size, size);
 }
-function drawEnemyBullets(){
-  ctx.fillStyle = "#ff0";
-  for(let i = enemyBullets.length-1; i>=0; i--){
+function drawEnemyBullets() {
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
     const b = enemyBullets[i];
-    ctx.fillRect(b.x, b.y, 3, 6);
+    const time = Date.now() * 0.01; 
+    
+    // --- CENTERED BURNING EFFECT ---
+    for (let j = 0; j < 3; j++) {
+      // Use a smaller flicker so it doesn't look like it's "detaching"
+      const flickerX = Math.sin(time + j) * 2; 
+      const flickerY = Math.random() * 15 + 10;
+      
+      ctx.fillStyle = j === 0 ? "rgba(255, 100, 0, 0.3)" : "rgba(255, 200, 0, 0.2)";
+      ctx.beginPath();
+      
+      // Start slightly left of center
+      ctx.moveTo(b.x - 3, b.y); 
+      
+      // Curve to a point directly above the center (b.x) + flicker
+      ctx.quadraticCurveTo(
+        b.x + flickerX, b.y - flickerY, 
+        b.x + 3, b.y // End slightly right of center
+      );
+      ctx.fill();
+    }
+
+    // --- CENTERED BULLET BODY ---
+    let grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + 12);
+    grad.addColorStop(0, "#ffcc00"); 
+    grad.addColorStop(1, "#ff0000");
+
+    ctx.fillStyle = grad;
+    // (b.x - 2.5) centers the 5px wide rectangle perfectly
+    ctx.fillRect(b.x - 2.5, b.y, 5, 12);
+
     b.y += b.speed;
-    if(b.y > canvas.height) enemyBullets.splice(i, 1);
+    if (b.y > canvas.height + 20) enemyBullets.splice(i, 1);
   }
 }
+
+
 function drawUI() {
   const padding = 16;
   const heartSize = 4;
 
-  ctx.font = "bold 18px 'Comic Sans MS', 'Trebuchet MS', Arial, sans-serif";
+  ctx.font = "bold 18px 'Courier New', Courier, monospace";
   ctx.textBaseline = "top";
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 4;
   ctx.strokeStyle = "#000";
 
   const labelColor = "#e0e0e0"; // bright grey
@@ -591,7 +735,7 @@ function enemyShoot(){
         y: e.y + 8,
         speed: enemyBulletSpeed
       });
-      playEnemyHitSound();
+      playEnemyFireSound();
     }
   });
 }
@@ -604,8 +748,8 @@ function checkHits(){
       if(!e.alive) continue;
 
       const enemyHitbox = {
-        left: e.x - 18,
-        right: e.x + 18,
+        left: e.x - 20,
+        right: e.x + 20,
         top: e.y - 20,
         bottom: e.y + 20
       };
@@ -626,37 +770,46 @@ function checkHits(){
   }
 }
 
-function checkEnemyHits(){
+function checkEnemyHits() {
+ 
   const shipHitbox = {
-    left: ship.x - 12,
-    right: ship.x + 12,
-    top: ship.y - 30,
-    bottom: ship.y + 28
+    left: ship.x - 17,
+    right: ship.x + 17,
+    top: ship.y - 18,    
+    bottom: ship.y + 18  
   };
 
-  for(let i = enemyBullets.length-1; i>=0; i--){
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
     const b = enemyBullets[i];
+    
+    const bulletFront = b.y + 12;
+    const bulletBack = b.y;
 
-    if(
+    if (
       !ship.shield &&
       b.x >= shipHitbox.left &&
       b.x <= shipHitbox.right &&
-      b.y >= shipHitbox.top &&
-      b.y <= shipHitbox.bottom
-    ){
+      bulletFront >= shipHitbox.top && 
+      bulletBack <= shipHitbox.bottom
+    ) {
+      // HIT DETECTED
       enemyBullets.splice(i, 1);
       lives--;
       spawnExplosion(ship.x, ship.y, true);
 
-      if(lives <= 0){
+      if (lives <= 0) {
         gameOver = true;
-        alert("GAME OVER\nScore:"+score);
+        alert("GAME OVER\nScore: " + score);
       } else {
+        // Give the player a new shield upon respawning
+        ship.shield = true;
+        setTimeout(() => { ship.shield = false; }, 3000);
         spawnPlayer();
       }
     }
   }
 }
+
 
 /* ================= Player Respawn ================= */
 function spawnPlayer(){
@@ -674,12 +827,14 @@ function isWaveCleared(){
 function increaseDifficulty() {
   wave++;
 
+  // stronger difficulty growth per wave
   enemyBaseSpeed = Math.min(0.3 + Math.pow(wave, 0.3) * 0.07, maxEnemySpeed);
   enemyBulletSpeed = Math.min(2 + Math.pow(wave, 0.25) * 0.08, 3); 
-  enemyShootChance = Math.min(0.0002 + Math.pow(wave, 0.3) * 0.0002, maxShootChance);
+  enemyShootChance = Math.min(0.0002 + Math.pow(wave, 0.3) * 0.0002, maxShootChance); 
 
   spawnWave();
 }
+
 
 /* ================= Game Loop ================= */
 function update(){
