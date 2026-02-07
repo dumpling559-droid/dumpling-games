@@ -831,7 +831,7 @@ function drawEnemyBullets() {
     [T,T,R,R,R,T,T],
   ];
 
-  const px = 1;
+  const px = 1.5;
 
   for (let i = enemyBullets.length - 1; i >= 0; i--) {
     const b = enemyBullets[i];
@@ -848,8 +848,8 @@ function drawEnemyBullets() {
         ctx.fillRect(
           x0 + x * px,
           y0 + y * px,
-          px,
-          px
+          Math.ceil(px),
+          Math.ceil(px)
         );
       }
     }
@@ -987,27 +987,39 @@ function checkHits(){
   }
 }
 
-function checkEnemyHits() {
+function isPointInTriangle(px, py, x1, y1, x2, y2, x3, y3) {
   
-  const shipHitbox = {
-    left: ship.x - 17,
-    right: ship.x + 17,
-    top: ship.y - 18,    
-    bottom: ship.y + 18  
-  };
+  const areaOrig = Math.abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1));
+  const area1 = Math.abs((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py));
+  const area2 = Math.abs((x2 - px) * (y3 - py) - (x3 - px) * (y2 - py));
+  const area3 = Math.abs((x3 - px) * (y1 - py) - (x1 - px) * (y3 - py));
+
+  return Math.abs(areaOrig - (area1 + area2 + area3)) < 0.01;
+}
+
+function checkEnemyHits() {
+  const px = 1.5;
+  const bulletW = 7 * px;
+  const bulletH = 17 * px;
+
+  const topX = ship.x, topY = ship.y - 18;
+  const leftX = ship.x - 17, leftY = ship.y + 18;
+  const rightX = ship.x + 17, rightY = ship.y + 18;
 
   for (let i = enemyBullets.length - 1; i >= 0; i--) {
     const b = enemyBullets[i];
-    const bulletFront = b.y + 12;
-    const bulletBack = b.y;
+    
+    const bL = b.x - (bulletW / 2);
+    const bR = b.x + (bulletW / 2);
+    const bT = b.y;
+    const bB = b.y + bulletH;
 
-    if (
-      !ship.shield &&
-      b.x >= shipHitbox.left &&
-      b.x <= shipHitbox.right &&
-      bulletFront >= shipHitbox.top && 
-      bulletBack <= shipHitbox.bottom
-    ) {
+    const hit = isPointInTriangle(bL, bT, topX, topY, leftX, leftY, rightX, rightY) || // Top Left
+                isPointInTriangle(bR, bT, topX, topY, leftX, leftY, rightX, rightY) || // Top Right
+                isPointInTriangle(bL, bB, topX, topY, leftX, leftY, rightX, rightY) || // Bottom Left
+                isPointInTriangle(bR, bB, topX, topY, leftX, leftY, rightX, rightY);   // Bottom Right
+
+    if (!ship.shield && hit) {
       enemyBullets.splice(i, 1);
       processPlayerDeath();
       return;
