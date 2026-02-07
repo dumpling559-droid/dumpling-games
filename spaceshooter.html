@@ -1015,7 +1015,7 @@ function processPlayerDeath() {
   if (lives <= 0) {
     gameOver = true;
     setTimeout(() => {
-      alert("GAME OVER\nScore: " + score + "/nWave: " + wave);
+      alert("GAME OVER\nScore: " + score + "\nWave: " + wave);
       location.reload(); 
     }, 100);
   } else {
